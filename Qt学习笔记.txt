@@ -1,0 +1,440 @@
+1. Qt设置带图片的label，可设置字体颜色，大小
+   QString strColor = "#cccccc";
+   QString state = "test"
+   QString strImgPath = ":/images/default/devmanage/dot_unrecord.png";
+   QString htmlString = QString("<html><img src=%1/><font color=\"%2\" size= \"3\">&nbsp;%3</font></html>").arg(strImgPath).arg(strColor).arg(state);
+   ui->label->setText(htmlString);
+   
+2. Qt多语言翻译工具更新翻译去掉无用的翻译
+   环境->外部工具->Qt语言家->更新翻译->参数 中最后面加上 -no-obsolete
+   
+3. Qt中禁止QTableWidget排序
+   ui->tableWidget->setSortingEnabled(false);
+
+4. Qtreeview
+   选中某片区域
+   选中多个节点
+   this->selectionModel()->select(index,QItemSelectionModel::Select | QItemSelectionModel::Rows);
+   选中单个节点
+   setCurrentIndex(index);
+
+  隐藏某行
+  QModelIndex index; //要隐藏的节点
+  int row = 1;   //要隐藏节点在他的父节点中的行数
+  setRowHidden(row ,index.parent(),true);
+
+  //解决滚动条问题
+  如果Item过长，我们发现qtreeview并没有按我们想象中的出现滚动条，即使你设置了
+  ui->treeView->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+  这时候需要在树变化的槽函数里面调用函数resizeColumnToContents(0);  在下面的槽函数里面调用这个即可
+  问题网址：https://blog.csdn.net/Maybe______/article/details/53809813
+  connect(ui->treeView,SIGNAL(expanded(const QModelIndex&)),this,SLOT(slot_expanded(const QModelIndex &)));
+  connect(ui->treeView,SIGNAL(collapsed(const QModelIndex&)),this,SLOT(slot_collapsed(const QModelIndex &)));
+
+5.  QToolbox
+    常用接口：
+	//获取某页索引
+	int indexOf(QWidget *widget) const;
+	QWidget *currentWidget() const;
+	int currentIndex() const;
+	//设置当前页
+    QWidget *widget(int index) const;
+	void setCurrentWidget(QWidget *widget);
+	//设置获取图标
+	void setItemIcon(int index, const QIcon &icon);
+	QIcon itemIcon(int index) const;
+	//设置获取某页描述
+	void setItemText(int index, const QString &text);
+    QString itemText(int index) const;
+	//隐藏某页
+	void removeItem(int index);
+	
+    关于removeItem（）删除某页，只是不显示，并未在内存中删除
+    以下代码，旨在只显示page1和page3,如果把这段代码放在构造函数中执行，
+    将会出现toolbox显示不全的Qt官方BUG，解决办法就是show之后再调用，我们可以放在showEvent（）函数中调用这段代码
+
+    int index = ui->toolBox->indexOf(ui->page1);
+    //ui->toolBox->removeItem(index);
+
+    index = ui->toolBox->indexOf(ui->page2);
+    ui->toolBox->removeItem(index);
+
+    index = ui->toolBox->indexOf(ui->page3);
+    //ui->toolBox->removeItem(index);
+
+    index = ui->toolBox->indexOf(ui->page4);
+    ui->toolBox->removeItem(index);
+
+   如何自定义toolbox的点击事件？
+   Qt官方只提供了currentChanged(int index)信号，但是这个信号只有点击不同的页时才会触发，如果你连续点击某页，只会触发一次，无法响应第二次？
+   这是因为Qt隐藏了该按钮相关的操作接口，解决办法：获取该按钮的指针
+  
+   QList<QAbstractButton *> list = ui->toolBox->findChildren<QAbstractButton*>("qt_toolbox_toolboxbutton");
+   for(int i=0;i<list.size();i++)
+   {
+		//循环获取每页的Button指针
+         QString name = list.at(i)->text();
+         if(name == tr("TK_Device"))
+         {
+		     //甚至可以在这个Button上面再叠加一个按钮
+             QPushButton *pBtn = new QPushButton(list.at(i));
+			 //增加布局，让这个按钮最右边显示
+             QHBoxLayout *layout = new QHBoxLayout(list.at(i));
+             layout->addWidget(pBtn);
+             layout->setAlignment(Qt::AlignRight);
+             layout->setContentsMargins(0,0,0,0);
+             pBtn->setFixedSize(30,30);
+             pBtn->setIcon(QIcon(":/images/default/ai/search.png"));
+			 //设置样式
+             AppStyleHelper::updateWidgetStyle(pBtn, AppStyleHelper::Style_PushButtonLight);
+             pBtn->setFocusPolicy(Qt::NoFocus);
+             pBtn->show();
+			 //连接叠加按钮点击信号
+             connect(pBtn,SIGNAL(clicked()),this,SLOT(slot_searchClicked()));
+         }
+		 //连接页按钮点击信号
+         connect(list.at(i),SIGNAL(clicked()),this,SLOT(slot_toolButtonClicked()));
+    }
+	这样，我们就可以在slot_toolButtonClicked中处理每页的点击事件了
+	QAbstractButton *editor = (QAbstractButton*)sender();
+	在槽函数里面获取发射该信号对象指针，即可做相应的处理
+	
+5：QIcon类
+  比如某个按钮，我要根据不同情况设置这个按钮不同的图标，那么设置好之后，我们怎么区分当前按钮设置的是哪个图标呢？
+  QIcon iconExpand = QIcon(":/images/default/liveview/tree_show.png");
+  QIcon iconExpand.setIsMask(true);
+  QIcon iconHide = QIcon(":/images/default/liveview/tree_hidden.png");
+  QIcon iconHide.setIsMask(false);
+  可以采用设置Mask来区分，后面切换图标时先获取该图标Mask再确定是哪个图标
+
+6： 线型渐变
+    QPainter painter(this);
+	QLinearGradient linearGradient(0, 0, 200, 200);   //线型渐变起始坐标
+	linearGradient.setColorAt(0.0,QColor(255, 228, 181)); //设置开始颜色
+	linearGradient.setColorAt(0.5,Qt::white); //设置中间颜色
+	linearGradient.setColorAt(1.0,QColor(255, 228, 181)); //设置终点颜色
+	QBrush brush(linearGradient); //将渐变设置到画刷
+	
+	painter.setPen(QPen(brush,10,Qt::DotLine)); //将画刷关联到画笔，并设置画笔大小，画线类型
+	painter.setRenderHint(QPainter::Antialiasing,true); //抗锯齿
+	painter.drawLine(0,0, 400,300); //画线
+	
+	设置透明度
+	QColor color(250, 235, 215); 
+	color.setAlphaF(0.5); //设置透明度，值越大越不透明
+	painter.setPen(QPen(color,20,Qt::SolidLine));  //将该透明色关联画笔
+	painter.setRenderHint(QPainter::Antialiasing,true); //抗锯齿
+	painter.drawLine(0,0, 400,300);  //画线
+	
+7: QTableWidget类
+   
+   //表基本设置
+   ui->tableWidget->horizontalHeader()->setSectionResizeMode (QHeaderView::Stretch);  //禁用水平滚动条
+   ui->tableWidget->horizontalHeader()->hide();  //隐藏水平头
+   ui->tableWidget->verticalHeader()->hide(); //隐藏垂直头
+   ui->tableWidget->setEditTriggers(QAbstractItemView::NoEditTriggers); //不允许编辑
+   ui->tableWidget->setShowGrid(false); //隐藏网格
+   ui->tableWidget->setSelectionMode(QAbstractItemView::NoSelection);//不允许选中
+   ui->tableWidget->setColumnCount(m_nColumnCount); //设置列数
+   ui->tableWidget->setRowCount(nRowCount); //设置行数
+   ui->tableWidget->setColumnWidth(i,nWidth / m_nColumnCount); //设置某列宽
+   ui->tableWidget->setRowHeight(j,m_nRowHeight); //设置某行高
+   ui->tableWidget->setItem(nextRowNum, j, tmpItem); //设置某单元格
+   
+   //单元格添加控件
+   ui->tableWidget->setCellWidget(nRow,nColumn,pUnit); //设置某单元格为控件
+   ui->tableWidget->cellWidget(nRow,nColumn) //获取某控件单元格指针
+   
+   //QTableWidgetItem类，单元格操作
+   setCheckState(Qt::Unchecked); //设置某单元格是否可以加载checkbox
+   setTextAlignment(Qt::AlignCenter); //设置居中
+   tmpItem->setData(Qt::UserRole + 1, QVariant::fromValue<ThinyTableData>(data)); //设置用户自定义数据
+   
+   pVideoSubWin->setStyleSheet("border:2px solid rgb(255, 128, 58)"); //不允许选中
+   
+8： QPieSeries类
+    画扇形图或者圆环图
+	pro需要添加charts模块，安装Qt的时候一定要注意装这个模块，默认不安装
+	
+    int nPercent = alreadyUseSize * 100 / allSize;
+    QString strAlready = QString("%1%2%").arg(tr("TK_AlreadyUse")).arg(nPercent); //底部显示的标签
+    QString strRemain = QString("%1%2%").arg(QObject::tr("TK_Remain")).arg(100 - nPercent); //底部显示的标签
+
+    //设置环比例
+    m_seriesCpu = new QPieSeries();
+    //m_seriesCpu->setHoleSize(0.55);  //打开开关为画圆环图，关闭为画扇形图
+    QPieSlice *sliceServ = m_seriesCpu->append(strAlready, nPercent);
+    sliceServ->setColor(QColor("#ff00ff")); //设置每个扇区比例和底部文字，还有颜色
+	sliceServ->setBorderColor(QColor(0, 0, 0)); //设置边缘颜色
+
+    QPieSlice *sliceRemain = m_seriesCpu->append(strRemain, 100 - nPercent);
+    sliceRemain->setColor(QColor("#0000ff"));
+	sliceRemain->setBorderColor(QColor(0, 0, 0)); //设置边缘颜色
+
+    m_chartViewCpu = new QChartView(ui->widgetPercent); //在父控件widgetPercent上画这个扇形
+    m_chartViewCpu->setRenderHint(QPainter::Antialiasing); //抗锯齿
+    m_chartViewCpu->chart()->addSeries(m_seriesCpu); //关联这2个类
+
+    m_chartViewCpu->chart()->legend()->setMarkerShape(QLegend::MarkerShapeRectangle);
+    m_chartViewCpu->chart()->legend()->setAlignment(Qt::AlignBottom); //设置文字提示在底部显示，特别注意，底部是横向显示的，如果项太多，可能显示不全，建议写自定义标签控件
+    m_chartViewCpu->chart()->legend()->setLabelColor(QColor(186,186,186));
+    m_chartViewCpu->chart()->legend()->setFont(QFont("Microsoft YaHei", 10)); //字体
+	//m_chartViewCpu->chart()->legend()->setBackgroundVisible(false);  //隐藏底部标签，底部标签样式很死板，如果要求高，可以隐藏默认的标签，换成自定义控件
+    m_chartViewCpu->chart()->setBackgroundVisible(false); //设置背景透明
+
+    m_chartViewCpu->chart()->setAnimationOptions(QChart::SeriesAnimations); //点击扇区弹起动画效果
+    m_chartViewCpu->chart()->setBackgroundBrush(QBrush(QColor(Qt::transparent)));
+
+    QVBoxLayout *layout  = new QVBoxLayout(ui->widgetPercent); //布局
+    layout->addWidget(m_chartViewCpu);
+    layout->setContentsMargins(0,0,0,0);
+    m_chartViewCpu->setSizePolicy(QSizePolicy::Preferred,QSizePolicy::Preferred);
+
+9：QCursor
+     setCursor(Qt::ForbiddenCursor);  //设置鼠标形状，可以设置多种常见的鼠标形状
+	 
+10：Qt中如何切换翻译
+   void SNToolBox::changeEvent(QEvent *event)
+   {
+     if (QEvent::LanguageChange == event->type())
+     {
+         ui->retranslateUi(this);
+     }
+   }
+   
+11：透明度样式设置
+  QLabel
+  {    
+     background-color: rgba(255, 255, 224, 50%);  //最后一项就是透明度
+     border: 2px solid black;
+  }
+  
+12：控件设置阴影
+    QGraphicsDropShadowEffect *shadow_effect = new QGraphicsDropShadowEffect(this);
+    shadow_effect->setOffset(-5, 5);              //阴影的偏移量
+	shadow_effect->setColor(QColor(67, 67, 68)); //阴影的颜色
+	shadow_effect->setBlurRadius(8);
+	m_pToolWidget->setGraphicsEffect(shadow_effect);
+	
+13:设置cookies
+
+   //先获取上个访问网址响应里面的cookies
+   QNetworkAccessManager* m_manager
+   QList<QNetworkCookie> m_cookieList = m_manager->cookieJar()->cookiesForUrl(QUrl("http://192.168.123.200/oa/sunell.kaoqinquery/cardquery.aspx")); //url为要使用cookies的目标网址
+   
+   //利用上面保存的cookies访问新的网址
+   QVariant var;
+   var.setValue(m_cookieList);
+   //设置QNetworkRequest的网址和cookies
+   request.setHeader(QNetworkRequest::CookieHeader,var);
+   request.setUrl(QUrl("http://192.168.123.200/oa/sunell.kaoqinquery/cardquery.aspx"));
+   
+14:QT提交form表单
+    networkManager = new QNetworkAccessManager(this);
+	QByteArray  content =  "name=1&pwd=1";
+	int contentLength = content.length();
+	QNetworkRequest req;
+	req.setUrl(QUrl("http://192.168.1.59/index.php?do=check"));
+	req.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
+	req.setHeader(QNetworkRequest::ContentLengthHeader,contentLength);
+	QNetworkReply *rtn = networkManager->post(req,content);
+	
+15:提交表单一定要注意转换特殊字符啊，不然各种坑
+    //替换特殊字符
+	function HTMLEncode(text){
+	 text = text.replace(/&/g, "&amp;") ;   也就是如果含有&,一定要改为/&/转义
+	 text = text.replace(/"/g, "&quot;") ;
+	 text = text.replace(/</g, "&lt;") ;
+	 text = text.replace(/>/g, "&gt;") ;
+	 text = text.replace(/'/g, "&#146;") ;
+	 text = text.replace(/\ /g,"&nbsp;");
+	 text = text.replace(/\n/g,"<br>");
+	 text = text.replace(/\t/g,"&nbsp;&nbsp;&nbsp;&nbsp;");
+	 return text;
+	}
+	//还原特殊字符
+	function TEXTAREAcode(text){
+	 text = text.replace(/\n/g,"");
+	 text = text.replace(/&amp;/g, "&") ;
+	 text = text.replace(/&quot;/g, "\"") ;
+	 text = text.replace(/&lt;/g, "<") ;
+	 text = text.replace(/&gt;/g, ">") ;
+	 text = text.replace(/&#146;/g, "\'") ;
+	 text = text.replace(/&nbsp;/g," ");
+	 text = text.replace(/<br>/g,"\n");
+	 return text;
+	}
+	
+16：QT如何设计一个圆角且带阴影的独立主窗口？
+    主窗口是没法直接设置圆角，设置阴影的，我们直接上代码吧
+	思路：把所有的子控件放在QFrame上面，然后对QFrame设置圆角和阴影，QFrame和主Widget之间留6px左右间距用于显示阴影
+	ui->frame->setStyleSheet("QWidget{background-color:rgb(54,100,139);color:rgb(255,255,255);border-top-left-radius:10px;border-top-right-radius:10px;border-bottom-left-radius:10px;border-bottom-right-radius:10px;}");
+    
+	//主窗口设置透明无标题
+	this->setWindowFlags(Qt::FramelessWindowHint);
+    this->setAttribute(Qt::WA_TranslucentBackground);
+
+    QGraphicsDropShadowEffect *shadow_effect = new QGraphicsDropShadowEffect(this);
+    shadow_effect->setOffset(3, 3);              //阴影的偏移量，3，3代表在右方和下方阴影
+    shadow_effect->setColor(QColor(67, 67, 68)); //阴影的颜色
+    shadow_effect->setBlurRadius(10);
+    ui->frame->setGraphicsEffect(shadow_effect);
+	
+17：让窗口不在任务栏显示
+	widget.setWindowFlags(Qt::Tool | Qt::WindowStaysOnTopHint | Qt::X11BypassWindowManagerHint);
+	
+18: QVariant自定义类型
+    struct Node
+	{
+		QString name;
+		int age;
+	}
+	Q_DECLARE_METATYPE(Node) //必须声明这个类型
+	
+	Node data;
+	QVariant valueTmp = QVairant::fromValue(valueTmp);  //存储
+
+	Node dataTest = valueTmp.value<Node>();  //读取
+	
+19：Qt托盘
+
+    //显示托盘
+    m_trayicon = new QSystemTrayIcon(this);
+    connect(m_trayicon, SIGNAL(activated(QSystemTrayIcon::ActivationReason)), this, SLOT(onTrayIconClicked(QSystemTrayIcon::ActivationReason)));  //托盘点击处理
+    QIcon icon(":/icon.ico");
+    m_trayicon->setIcon(icon);
+    m_trayicon->show();
+	
+	void Widget::onTrayIconClicked(QSystemTrayIcon::ActivationReason reason)
+	{
+		switch(reason)
+		{
+			case QSystemTrayIcon::DoubleClick:
+				 if(isHidden())
+				 {
+					 //双击托盘处理
+					 show();
+					 setWindowState(Qt::WindowActive);
+					 activateWindow();
+				 }
+				 else
+				 {
+					 hide();
+				 }
+			break;
+
+			default:
+			break;
+		}
+	}
+
+20：Qt startDetached和start返回失败
+	请看看启动的程序路径里面是否包含空格，不能包含空格
+	QProcess::startDetached("sunview.exe");  //成功启动该程序
+    现在将sunview.exe改名，改为sunview hello.exe
+	QProcess::startDetached("sunview hello.exe");  //启动失败
+	QProcess::startDetached("\"\" \"sunview hello.exe\"");  //启动成功
+	其实QProcess跟windows cmd命令是一样的，我们在cmd里面执行命令 start sunview hello.exe也会失败，此时换成start "" "sunview hello.exe"就能成功，前面的""表示窗口标题，我们置空即可
+	QProcess start命令也一样
+	
+21：Qt生成PDF，Widget转PDF导出
+	QPrinter pic_printer;
+	//pic_printer.setResolution(QPrinter::HighResolution);千万别设置分辨率，否则导出PDF将会一片空白，切记！！！
+    pic_printer.setPageSize(QPrinter::A4);
+    pic_printer.setOutputFormat(QPrinter::PdfFormat);
+    QString file_path = QFileDialog::getSaveFileName(this,"export health report",QString(),"*.pdf");
+    if(!file_path.isEmpty())
+    {
+        if(QFile::exists(file_path))
+        {
+            QFile::remove(file_path);
+        }
+        if(QFileInfo(file_path).suffix().isEmpty())
+        {
+            file_path.append(".pdf");
+        }
+    }
+    pic_printer.setOutputFileName(file_path);
+    QPixmap pixmap = this->grab(this->rect()); //截图，this为widget控件，上面有文字，表格，图片等
+    QPainter pic_painter;
+    pic_painter.begin(&pic_printer);
+
+    pic_painter.drawText(0,0,"you health report");  //第一页写入一个标题
+    pic_printer.newPage(); //另起一页
+    pic_painter.scale(1,1); //缩放
+    pic_painter.drawPixmap(0,0,pixmap); //第二页把截图转换成PDF
+    pic_painter.end();
+	
+22：Qt程序打包方法
+    采用windeployqt打包确实会打包所有依赖的库，但是有些电脑运行时还是会报错，原因是缺少windows运行时库，自己去下载可能会出现版本不匹配，比较麻烦
+	我们仔细看windeployqt打包过程，会发现，普通打包过程中会出现一个警告：
+	Warning : Can not find Visual Studio installation directory，VCINSTALLDIR is not set
+	我们去电脑里面添加一个用户环境变量：
+	变量名：VCINSTALLDIR
+	变量值：C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC
+	变量值为VS安装目录下的VC目录，然后关闭打包窗口，重新打包，会发现，警告消失了，打包路径下面多出了一个vcredist_x86.exe这个正是所需要安装的运行时库，安装即可
+	如果电脑没有安装过VS，这个运行时库必须安装程序才不会报错
+	
+25: 正则表达式
+	QRegExp regExp("[0-9]{1,}[/.]{0,1}[0-9]");
+	表示前面第一个必须是数字，可以有多个数字，后面紧跟.符号，可以有0-1个.符号。最后面全部是数字
+	
+25: QListWidget的坑
+
+    for(int i = 0;i < 5;i++)
+	{
+	    //欲把Item每次都插入在第一行,实际结果恰好相反在最后一行
+		QListWidgetItem* item = new QListWidgetItem(ui->listWidget);
+		//QListWidgetItem* item = new QListWidgetItem();
+		item->setText(QString::number(i));
+		ui->listWidget->insertItem(0, item);
+	}
+	把代码改为注释处的语句就能生效，官方回复是，如果你想插入Item在指定行，不要再item构造函数里面指定父类，否则会被插入到最后一行
+	
+	
+23: MFC获取进程ID和真实句柄
+	HWND hnd = FindWindow(NULL, L"HookTest");  //程序名称,不用带.exe
+	DWORD pid;
+	//获取进程PID
+	GetWindowThreadProcessId(hnd, &pid);
+	//获取进程真实句柄
+	HANDLE curHandel = ::OpenProcess(PROCESS_ALL_ACCESS, NULL, pid);
+	//获取进程伪句柄，是0xffffff,具有安全性？
+	HANDLE myHandel = GetCurrentProcess();  
+	
+24：
+	这是一个前辈写的，非常详细  
+	//main.cpp  
+	int a = 0; 全局初始化区  
+	char *p1; 全局未初始化区  
+	main()  
+	{  
+		int b; 栈  
+		char s[] = "abc"; 栈  
+		char *p2; 栈  
+		char *p3 = "123456"; 123456\0在常量区，p3在栈上。  
+		static int c =0； 全局（静态）初始化区  
+		p1 = (char *)malloc(10);  
+		p2 = (char *)malloc(20);  
+		分配得来得10和20字节的区域就在堆区。  
+		strcpy(p1, "123456"); 123456\0放在常量区，编译器可能会将它与p3所指向的"123456"
+		优化成一个地方。  
+	}
+	
+24:QCheckBox设置大小
+   ui->checkBox->setStyleSheet("QCheckBox::indicator {width: 20px; height: 20px;}
+
+25：字符串转换为大写/小写
+
+   char temp[200] = { 0 };
+   strcpy(temp, "ACSDeddf123");
+   char* pParam = _strlwr(temp);  //注意这个函数参数必须为char*，不能为const char*
+   char* pParam = _strupr(temp);
+   
+	
+	D:\VSProject\Hook_CreateRemoteThread\Debug\Hook_CreateRemoteThread.exe
+	https://baidu.com
+	www.baidu.com
+	https://www.baidu.com/
+	http://baidu.com
+	baidu.com
